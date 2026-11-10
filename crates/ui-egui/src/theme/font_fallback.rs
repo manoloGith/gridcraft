@@ -119,7 +119,8 @@ pub(super) fn fallback_faces(han: HanOrder) -> Vec<(&'static str, Vec<(String, u
         HanOrder::Japanese => (ja, zh),
         HanOrder::Chinese => (zh, ja),
     };
-    vec![
+    #[cfg_attr(not(target_os = "android"), allow(unused_mut))]
+    let mut chain = vec![
         first,
         second,
         ("sys-cjk-hangul", cjk_hangul()),
@@ -129,7 +130,12 @@ pub(super) fn fallback_faces(han: HanOrder) -> Vec<(&'static str, Vec<(String, u
         ("sys-arabic", arabic()),
         ("sys-symbols", symbols()),
         ("sys-symbols-2", symbols_more()),
-    ]
+    ];
+    #[cfg(target_os = "android")]
+    for (key, faces) in &mut chain {
+        faces.extend(super::android_fonts::fallback(key));
+    }
+    chain
 }
 
 /// Linux directories that hold CJK fonts across distributions: Debian/Ubuntu (`opentype/noto`,

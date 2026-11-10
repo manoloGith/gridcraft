@@ -441,6 +441,8 @@ pub(super) fn candidates(role: &str) -> Vec<(String, u32)> {
         }
         _ => {}
     }
+    #[cfg(target_os = "android")]
+    v.extend(super::android_fonts::candidates(role));
     v
 }
 

@@ -57,11 +57,17 @@ impl SheetApp {
 
     /// Help ▸ Check for Updates…: look now, and say so when GridCraft is up to date or the check fails.
     pub fn check_for_updates(&mut self) {
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(not(any(target_arch = "wasm32", target_os = "android")))]
         updates_ui::start(self, true);
         #[cfg(target_arch = "wasm32")]
         {
             self.message = Some(("GridCraft".into(), "The web version is always the latest release.".into()));
+        }
+        // DexGridCraft: the desktop self-update doesn't apply to an Android app; its store
+        // (F-Droid, Obtainium, the GitHub releases) updates it.
+        #[cfg(target_os = "android")]
+        {
+            self.message = Some(("GridCraft".into(), "This Android app is updated by the store it came from.".into()));
         }
     }
 

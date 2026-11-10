@@ -20,6 +20,8 @@ use std::sync::Arc;
 use egui::epaint::text::Blob;
 use egui::{Color32, FontData, FontDefinitions, FontFamily, FontId, Stroke, Visuals};
 
+#[cfg(target_os = "android")]
+mod android_fonts;
 mod font_fallback;
 mod font_setup;
 
