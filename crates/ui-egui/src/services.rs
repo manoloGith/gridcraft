@@ -1,6 +1,7 @@
 use super::printing;
 
 type PickSave = Box<dyn Fn(&str) -> Option<String>>;
+type PickSaveAsync = Box<dyn Fn(&str, std::sync::mpsc::Sender<String>)>;
 type OpenUrl = Box<dyn Fn(&str)>;
 type CopyHtml = Box<dyn FnMut(&str, &str) -> Result<(), String>>;
 type Download = Box<dyn Fn(&str, &[u8])>;
@@ -15,6 +16,11 @@ pub struct Services {
     pub print_native: Option<printing::Submit>,
     pub pick_open: Option<Box<dyn Fn() -> Option<String>>>,
     pub pick_save: Option<PickSave>,
+    /// A Save picker that answers later, for hosts whose picker the interface thread can't wait
+    /// for (Android: it is another activity, and the activity's pause waits for this thread).
+    /// Starts the picker with the suggested name; the host sends the chosen path and wakes the
+    /// interface (`request_repaint`), or drops the sender to cancel. Used instead of `pick_save`.
+    pub pick_save_async: Option<PickSaveAsync>,
     /// Native picture picker (PNG/JPEG), separate from workbook opening.
     pub pick_picture: Option<Box<dyn Fn() -> Option<String>>>,
     /// Browser picture picker. Each dialog owns its inbox, so canceled picks cannot

@@ -236,6 +236,8 @@ pub struct SheetApp {
     /// Dismissible info bar under the ribbon (open-time notices).
     pub notice: Option<Notice>,
     pub services: Services,
+    /// A Save picker that answers later (`Services::pick_save_async`) and what follows its answer.
+    pub(crate) pending_save: Option<app::PendingPick>,
     pub printing: printing::State,
     print_feedback_seen: Option<printing::Feedback>,
     /// Synthetic input from agents, one batch per step (drags need several steps).

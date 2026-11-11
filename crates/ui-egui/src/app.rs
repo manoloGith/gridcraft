@@ -16,6 +16,7 @@ mod commands;
 mod editing;
 #[cfg(test)]
 pub(crate) use editing::{DRAFT_CODE_HIDDEN, DRAFT_SHEET_GONE};
+pub(crate) use save_picker::{AfterPick, PendingPick, Picking};
 mod files;
 mod fonts;
 mod input;
@@ -23,6 +24,7 @@ mod keys;
 mod prefs;
 mod print;
 mod quit;
+mod save_picker;
 mod view;
 
 impl SheetApp {
@@ -82,6 +84,7 @@ impl SheetApp {
             ui_window: None,
             parked: HashMap::new(),
             native_windows: false,
+            pending_save: None,
             arrange_windows: None,
             #[cfg(not(target_arch = "wasm32"))]
             updates_rt: Default::default(),
@@ -140,6 +143,8 @@ impl SheetApp {
         updates_ui::tick(self, ctx);
         // Files read asynchronously (web file picker, dropped files).
         self.poll_async_opens();
+        // A Save picker that answers later (`Services::pick_save_async`).
+        self.poll_save_picker();
         self.autosave(ctx);
         self.update_title(ctx);
         self.request_hidden_paint(ctx);

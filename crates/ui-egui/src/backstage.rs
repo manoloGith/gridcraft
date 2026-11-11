@@ -696,14 +696,15 @@ fn save_as(app: &mut SheetApp, ui: &mut Ui, bs: &mut Backstage, out: &mut Outcom
     });
     ui.add_space(14.0);
     // Desktop: the system Save dialog. Web: the file downloads.
-    let web = app.services.pick_save.is_none() && app.services.download.is_some();
+    let web = !app.has_save_picker() && app.services.download.is_some();
     let label = if web { format!("{} (.{fmt})", lang.tr("Download")) } else { lang.tr("Browse…").to_string() };
     if square_button(ui, Icon::OpenFolder, &label).clicked() && app.commit_edit(0, 0, false, false) {
         if fmt == "xlsx" {
             let before = app.session.active().map(|d| (d.path.clone(), d.is_dirty()));
             app.open_dialog("saveAs", json!({}));
             let after = app.session.active().map(|d| (d.path.clone(), d.is_dirty()));
-            if after != before || app.services.pick_save.is_none() {
+            // The page also closes once a picker that answers later is open (it saves then).
+            if after != before || !app.has_save_picker() || app.pending_save.is_some() {
                 out.close = true;
             }
         } else if export_as(app, fmt) {
@@ -747,17 +748,13 @@ pub fn export_as(app: &mut SheetApp, fmt: &str) -> bool {
     };
     let title = app.session.active().map(|d| d.display_title()).unwrap_or_else(|| "Book1".into());
     let stem = std::path::Path::new(&title).file_stem().and_then(std::ffi::OsStr::to_str).unwrap_or("Book1").to_string();
-    if let Some(pick) = &app.services.pick_save {
-        let Some(path) = pick(&format!("{stem}.{fmt}")) else { return false };
-        // The picker may suggest a workbook extension; the export writes the chosen format.
-        let path = std::path::Path::new(&path).with_extension(fmt).to_string_lossy().into_owned();
-        return match app.run(id, json!({"path": path})) {
-            Ok(_) => true,
-            Err(e) => {
-                app.message = Some(("GridCraft".into(), crate::clean_error(&e)));
-                false
-            }
-        };
+    // The picker may suggest a workbook extension; the export writes the chosen format.
+    match app.pick_save_then(&format!("{stem}.{fmt}"), crate::app::AfterPick::Export { id, fmt: fmt.to_owned() }) {
+        crate::app::Picking::Done(ok) => return ok,
+        // Handed over: the export runs when the picker answers.
+        crate::app::Picking::Waiting => return true,
+        crate::app::Picking::Cancelled => return false,
+        crate::app::Picking::NoPicker => {}
     }
     if app.services.download.is_none() {
         app.message = Some(("GridCraft".into(), "Exporting needs a file picker, which this window doesn't have.".into()));

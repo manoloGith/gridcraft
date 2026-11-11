@@ -11,8 +11,12 @@ fn faces(files: &[(&str, u32)]) -> Vec<(String, u32)> {
 /// More candidates for a role of `font_setup::candidates`, after the desktop ones.
 pub(super) fn candidates(role: &str) -> Vec<(String, u32)> {
     match role {
-        "ui" | "cell" | "cell-italic" => faces(&[("Roboto-Regular.ttf", 0), ("RobotoFlex-Regular.ttf", 0), ("NotoSans-Regular.ttf", 0), ("DroidSans.ttf", 0)]),
-        "ui-bold" | "cell-bold" | "cell-bold-italic" => faces(&[("Roboto-Bold.ttf", 0), ("Roboto-Regular.ttf", 0), ("NotoSans-Bold.ttf", 0), ("DroidSans-Bold.ttf", 0)]),
+        "ui" | "cell" | "cell-italic" => {
+            faces(&[("Roboto-Regular.ttf", 0), ("RobotoFlex-Regular.ttf", 0), ("NotoSans-Regular.ttf", 0), ("DroidSans.ttf", 0)])
+        }
+        "ui-bold" | "cell-bold" | "cell-bold-italic" => {
+            faces(&[("Roboto-Bold.ttf", 0), ("Roboto-Regular.ttf", 0), ("NotoSans-Bold.ttf", 0), ("DroidSans-Bold.ttf", 0)])
+        }
         "serif" => faces(&[("NotoSerif-Regular.ttf", 0), ("DroidSerif-Regular.ttf", 0)]),
         "math" | "math-italic" | "math-bold" => faces(&[("NotoSansMath-Regular.ttf", 0), ("NotoSerif-Regular.ttf", 0)]),
         "mono" => faces(&[("DroidSansMono.ttf", 0), ("CutiveMono.ttf", 0)]),

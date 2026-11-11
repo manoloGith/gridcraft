@@ -715,3 +715,90 @@ fn control_requests_route_to_a_window_and_list_windows() {
     let r = call(&mut h, "engine.execute", serde_json::json!({"command": "cell.get", "params": {"cell": "A1"}, "window": 999}));
     assert_eq!(r["ok"], false, "{r}");
 }
+
+/// A Save picker that answers later (Android's is another activity): the test holds the reply
+/// and answers when it chooses, as the host would.
+type Replies = Arc<Mutex<Vec<(String, std::sync::mpsc::Sender<String>)>>>;
+
+fn late_picker_harness() -> (Replies, egui_kittest::Harness<'static, SheetApp>) {
+    let replies: Replies = Arc::default();
+    let capture = replies.clone();
+    let h = harness(Services {
+        pick_save_async: Some(Box::new(move |suggested, reply| capture.lock().unwrap().push((suggested.to_string(), reply)))),
+        ..Default::default()
+    });
+    (replies, h)
+}
+
+/// Answers the oldest waiting picker with `path` and lets the next frames run.
+fn answer_picker(replies: &Replies, h: &mut egui_kittest::Harness<'static, SheetApp>, path: &std::path::Path) {
+    let (_, reply) = replies.lock().unwrap().remove(0);
+    reply.send(path.to_string_lossy().into_owned()).unwrap();
+    h.run_steps(3);
+}
+
+#[test]
+fn save_as_with_a_picker_that_answers_later_saves_once_it_answers() {
+    let dir = std::env::temp_dir().join(format!("gridcraft-late-save-as-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let (replies, mut h) = late_picker_harness();
+    h.state_mut().run("cell.set", serde_json::json!({"cell": "A1", "input": "42"})).unwrap();
+    choose(&mut h, "Save As");
+    click(&mut h, "Browse…");
+    assert_eq!(replies.lock().unwrap().len(), 1, "Browse starts the picker");
+    assert!(h.state().backstage.is_none(), "the page closes: the save follows the answer");
+    let d = h.state().session.active().unwrap();
+    assert!(d.path.is_none() && d.is_dirty(), "nothing is saved before the answer");
+    answer_picker(&replies, &mut h, &dir.join("Late"));
+    let saved = dir.join("Late.xlsx");
+    assert!(saved.exists(), "the answer is saved, as .xlsx when it has no extension");
+    let d = h.state().session.active().unwrap();
+    assert_eq!(d.path.as_deref(), Some(saved.to_string_lossy().as_ref()), "it becomes the workbook's file");
+    assert!(!d.is_dirty());
+    assert!(h.state().message.is_none());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn export_pdf_and_save_a_copy_with_a_picker_that_answers_later() {
+    let dir = std::env::temp_dir().join(format!("gridcraft-late-export-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let (replies, mut h) = late_picker_harness();
+    h.state_mut().run("cell.set", serde_json::json!({"cell": "A1", "input": "42"})).unwrap();
+    // Export as PDF keeps its other params for the answer: a bad range is reported then.
+    h.state_mut().run_or_alert("file.exportPdf", serde_json::json!({"range": "nope"}));
+    assert!(h.state().message.is_none(), "nothing runs before the answer");
+    answer_picker(&replies, &mut h, &dir.join("Bad.xlsx"));
+    assert!(h.state().message.is_some(), "the params went with the answer");
+    h.state_mut().message = None;
+    h.state_mut().run_or_alert("file.exportPdf", serde_json::json!({}));
+    assert!(replies.lock().unwrap()[0].0.ends_with(".pdf"), "the picker is offered a .pdf name");
+    answer_picker(&replies, &mut h, &dir.join("Report.xlsx"));
+    assert!(std::fs::read(dir.join("Report.pdf")).unwrap().starts_with(b"%PDF-"), "a PDF, whatever the picker's extension");
+    // Save a Copy with a bare name asks the picker, then writes there.
+    h.state_mut().open_dialog("saveCopy", serde_json::json!({"format": "html"}));
+    h.run_steps(3);
+    h.state_mut().dialog.as_mut().unwrap().values.insert("path".into(), serde_json::json!("Page"));
+    h.run_steps(2);
+    h.get_by_label("   OK   ").click();
+    h.run_steps(3);
+    assert_eq!(replies.lock().unwrap()[0].0, "Page.html", "the picker is offered the typed name");
+    answer_picker(&replies, &mut h, &dir.join("Chosen.html"));
+    assert!(std::fs::read_to_string(dir.join("Chosen.html")).unwrap().contains("42"));
+    let d = h.state().session.active().unwrap();
+    assert!(d.path.is_none(), "an export is a copy, not the workbook's file");
+    assert!(h.state().message.is_none());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_picker_that_closes_without_an_answer_writes_nothing() {
+    let (replies, mut h) = late_picker_harness();
+    h.state_mut().run("cell.set", serde_json::json!({"cell": "A1", "input": "42"})).unwrap();
+    h.state_mut().run_or_alert("file.exportPdf", serde_json::json!({}));
+    // The host drops the reply: the user cancelled.
+    replies.lock().unwrap().clear();
+    h.run_steps(3);
+    assert!(h.state().message.is_none());
+    assert!(h.state().session.active().unwrap().path.is_none());
+}

@@ -319,21 +319,24 @@ pub fn show(app: &mut SheetApp, ctx: &egui::Context) {
                         // A bare name has no folder: written as typed it would land in the
                         // process's working directory (`/` from the Finder, the install folder on
                         // Windows), never where the user looks. The picker chooses the folder.
-                        let pick = app.services.pick_save.as_ref();
-                        let target = if path.is_empty() {
-                            pick.and_then(|f| f(&format!("Copy.{fmt}")))
-                        } else if let Some(f) = pick.filter(|_| std::path::Path::new(&path).is_relative()) {
-                            f(&if path.ends_with(&format!(".{fmt}")) { path } else { format!("{path}.{fmt}") })
-                        } else {
-                            Some(path)
+                        let id = match fmt.as_str() {
+                            "csv" => "file.exportCsv",
+                            "html" => "file.exportHtml",
+                            _ => "file.saveAs",
                         };
-                        if let Some(t) = target {
-                            let id = match fmt.as_str() {
-                                "csv" => "file.exportCsv",
-                                "html" => "file.exportHtml",
-                                _ => "file.saveAs",
-                            };
-                            app.run_or_alert(id, json!({"path": t}));
+                        let ask = if path.is_empty() {
+                            Some(format!("Copy.{fmt}"))
+                        } else if app.has_save_picker() && std::path::Path::new(&path).is_relative() {
+                            Some(if path.ends_with(&format!(".{fmt}")) { path.clone() } else { format!("{path}.{fmt}") })
+                        } else {
+                            None
+                        };
+                        match ask {
+                            // The picker's answer runs `id` (now, or when it answers).
+                            Some(suggested) => {
+                                app.pick_save_then(&suggested, crate::app::AfterPick::SaveCopy { id });
+                            }
+                            None => app.run_or_alert(id, json!({"path": path})),
                         }
                     }
                 }
