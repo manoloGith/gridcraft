@@ -191,6 +191,15 @@ impl SheetApp {
         ctx.request_repaint();
     }
 
+    /// The host's strip below the ribbon ([`Services::below_ribbon`]). The hook is taken out
+    /// while it draws, as it gets the app, and put back unless it set another.
+    fn below_ribbon(&mut self, ui: &mut egui::Ui) {
+        if let Some(hook) = self.services.below_ribbon.take() {
+            hook(self, ui);
+            self.services.below_ribbon.get_or_insert(hook);
+        }
+    }
+
     /// Lays out the whole window.
     pub fn ui(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
@@ -232,6 +241,7 @@ impl SheetApp {
             backstage::show(self, ui);
         } else {
             ribbon::show(self, ui);
+            self.below_ribbon(ui);
             widgets::notice_bar(self, ui);
             // Python mode edits only in the formula bar: it shows while a Python edit is open,
             // also when the preference hides it.

@@ -2,6 +2,8 @@ use super::printing;
 
 type PickSave = Box<dyn Fn(&str) -> Option<String>>;
 type PickSaveAsync = Box<dyn Fn(&str, std::sync::mpsc::Sender<String>)>;
+/// [`Services::below_ribbon`]: draws in the window's `Ui` right after the ribbon.
+pub type BelowRibbonFn = Box<dyn Fn(&mut crate::SheetApp, &mut egui::Ui)>;
 type OpenUrl = Box<dyn Fn(&str)>;
 type CopyHtml = Box<dyn FnMut(&str, &str) -> Result<(), String>>;
 type Download = Box<dyn Fn(&str, &[u8])>;
@@ -21,6 +23,12 @@ pub struct Services {
     /// Starts the picker with the suggested name; the host sends the chosen path and wakes the
     /// interface (`request_repaint`), or drops the sender to cancel. Used instead of `pick_save`.
     pub pick_save_async: Option<PickSaveAsync>,
+    /// The host's own strip right below the ribbon, across the window (Android draws its
+    /// workbook tabs there, for the windows its one window shows). Drawn with the app, so it can
+    /// show and run what the app does: a strip that switches or closes a window does so with the
+    /// app's commands (`view.switchWindows`, `window.close`, which asks about unsaved changes).
+    /// `None` (desktop, web): nothing is drawn.
+    pub below_ribbon: Option<BelowRibbonFn>,
     /// Native picture picker (PNG/JPEG), separate from workbook opening.
     pub pick_picture: Option<Box<dyn Fn() -> Option<String>>>,
     /// Browser picture picker. Each dialog owns its inbox, so canceled picks cannot

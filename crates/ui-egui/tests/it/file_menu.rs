@@ -802,3 +802,30 @@ fn a_picker_that_closes_without_an_answer_writes_nothing() {
     assert!(h.state().message.is_none());
     assert!(h.state().session.active().unwrap().path.is_none());
 }
+
+/// A host strip below the ribbon (Android's workbook tabs) is drawn with the app, runs its
+/// commands, and stays for the next frame.
+#[test]
+fn the_host_strip_below_the_ribbon_runs_the_apps_commands() {
+    let mut h = harness(Services {
+        below_ribbon: Some(Box::new(|app: &mut SheetApp, ui: &mut egui::Ui| {
+            egui::Panel::top("host_strip").show(ui, |ui| {
+                let first = app.session.windows().first().map(|w| w.id);
+                if ui.button("First workbook").clicked()
+                    && let Some(window) = first
+                {
+                    app.run_or_alert("view.switchWindows", serde_json::json!({"window": window}));
+                }
+            });
+        })),
+        ..Default::default()
+    });
+    let first = h.state().session.active_window();
+    h.state_mut().run("file.new", serde_json::json!({})).unwrap();
+    h.run_steps(3);
+    assert_ne!(h.state().session.active_window(), first, "File › New shows the new workbook");
+    h.get_by_label("First workbook").click();
+    h.run_steps(3);
+    assert_eq!(h.state().session.active_window(), first, "the strip's button showed the first workbook");
+    assert!(h.state().services.below_ribbon.is_some(), "the hook is kept for the next frame");
+}
